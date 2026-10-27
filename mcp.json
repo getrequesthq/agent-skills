@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "getrequest-docs": {
+      "type": "http",
+      "url": "https://docs.getrequest.io/mcp"
+    }
+  }
+}

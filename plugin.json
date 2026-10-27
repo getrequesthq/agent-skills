@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "getrequest",
+  "version": "1.0.0",
+  "description": "Skills and the docs MCP server for getrequest (getrequest.io): put an API behind a getrequest endpoint, capture and verify webhooks, and troubleshoot or replay failed requests.",
+  "author": {
+    "name": "getrequest",
+    "email": "support@getrequest.io"
+  },
+  "homepage": "https://www.getrequest.io",
+  "repository": "https://github.com/getrequesthq/agent-skills",
+  "license": "MIT",
+  "keywords": ["getrequest", "api", "webhooks", "retries", "request-logging", "api-gateway"]
+}
