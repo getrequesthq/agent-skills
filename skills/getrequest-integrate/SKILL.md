@@ -5,30 +5,38 @@ description: Put getrequest (getrequest.io) in front of an API so every request 
 
 # Integrate an API with getrequest
 
-getrequest is Scalability as a Service for APIs: callers send requests to a getrequest endpoint URL instead of the backend, and getrequest relays, logs, and (optionally) retries them. There is nothing to host and no SDK to install. The integration is a base-URL change.
+getrequest is production ingress for apps and agents (Scalability as a Service for APIs): callers send requests to a getrequest endpoint URL instead of the backend, and getrequest relays, logs, and (optionally) retries them. There is nothing to host and no SDK to install. The integration is a base-URL change.
 
-Docs: https://docs.getrequest.io · Docs MCP server: https://docs.getrequest.io/mcp
+Docs: https://docs.getrequest.io · Docs MCP server: https://docs.getrequest.io/mcp · getrequest MCP server (manages endpoints): https://app.getrequest.io/mcp
 
 ## 1. Create an endpoint
 
-Endpoints are created in the dashboard. There is no public management API yet, so ask the user to do this step:
+**If the getrequest MCP server is connected** (tools such as `list_projects` and `create_endpoint` are available):
+
+1. Call `list_projects`, show the projects to the user, and **ask which one to use**. Never pick one yourself. Call `create_project` only if the user asks for a new one.
+2. Call `create_endpoint` with the project, a name, the method(s), a `mode` (see below), and a `destination` for sync/async.
+3. Use the `url` it returns.
+
+If it isn't connected, offer to connect it (https://docs.getrequest.io/guides/mcp; Claude Code: `claude mcp add --transport http getrequest https://app.getrequest.io/mcp`, then approve in the browser). Otherwise, ask the user to create the endpoint in the dashboard:
 
 1. Sign up or sign in at https://app.getrequest.io/register (Free plan: 10,000 requests/month, no card).
 2. Open a project → **New Endpoint**.
 3. Pick the HTTP method(s) (GET, POST, PUT, PATCH, DELETE; more than one is allowed), an **Action** (see below), and a **Destination URL** for Sync/Async.
-4. Copy the generated URL. It looks like `https://e.getrequest.io/aB3dEf7gH9jK2mN4`. The ID is random, permanent, and the only identifier; there is no project slug in the URL.
+4. Copy the generated URL.
+
+Either way, the URL looks like `https://e.getrequest.io/aB3dEf7gH9jK2mN4`. The ID is random, permanent, and the only identifier; there is no project slug in the URL. There is no REST API, SDK, or CLI for managing endpoints, so don't invent one.
 
 ## 2. Choose the action
 
 Ask one question: **does the caller need to see what the backend actually returns?**
 
-| Action (UI label) | Behaviour | Use for |
+| Action (UI label, MCP `mode`) | Behaviour | Use for |
 |---|---|---|
-| Sync API (`forward`) | Proxies inline and returns the destination's exact status, headers, and body. 3s destination timeout, no retries. Backend down → caller gets a real `502`/`504`. | Logins, payments, anything whose response drives the caller's next step |
-| Async API (`async_forward`) | Returns `202 {"status":"Success","request_id":"<uuid>"}` immediately, then delivers in the background with 6 attempts over ~36 minutes (immediate, 15s, 60s, 5m, 15m, 15m). 10s timeout per attempt. | Webhooks, fire-and-forget events, absorbing traffic spikes |
-| Static API (`json`) | Returns a fixed JSON body you configure. No upstream call. | Mocking an API before the backend exists |
+| Sync API (`sync`) | Proxies inline and returns the destination's exact status, headers, and body. 3s destination timeout, no retries. Backend down → caller gets a real `502`/`504`. | Logins, payments, anything whose response drives the caller's next step |
+| Async API (`async`) | Returns `202 {"status":"Success","request_id":"<uuid>"}` once the request is queued, then delivers in the background with 6 attempts over ~36 minutes (immediate, 15s, 60s, 5m, 15m, 15m). 10s timeout per attempt. If it can't be queued, the caller gets `503` (retry it) or `413` (too large to queue) instead. | Webhooks, fire-and-forget events, absorbing traffic spikes |
+| Static API (`static`) | Returns a fixed JSON body you configure. No upstream call. | Mocking an API before the backend exists |
 
-The action can be switched later with no downtime.
+The action can be switched later with no downtime (MCP: `update_endpoint` with a new `mode`).
 
 ## 3. Point callers at the endpoint
 
@@ -47,7 +55,9 @@ Headers forwarded to the destination: an allow-list (`Content-Type`, `Authorizat
 - **Authentication** checks the caller: Bearer, API Key (header or query), Basic, or HMAC over the raw body. A failure returns `401` and the request is still logged.
 - **Destination Authentication** attaches a credential to the outbound call: Bearer, API Key, Basic, or an HMAC signature. Any `Authorization` header the caller sent is replaced.
 
-Warn the user that configured auth secrets are currently shown unmasked to anyone on the team who can view the project's logs.
+With the MCP server, pass credentials in `source_auth` / `destination_auth`. Take them from the user or their environment and don't repeat them in the conversation; getrequest never returns them.
+
+Warn the user that configured auth secrets are currently shown unmasked in the dashboard to anyone on the team who can view the project's logs.
 
 ## Limits to design around
 
@@ -57,6 +67,6 @@ Warn the user that configured auth secrets are currently shown unmasked to anyon
 
 ## Verify
 
-Send a test request, then open **Logs** in the project. Every request shows headers, body, response, status, and timing. For Async endpoints the log row appears once the first delivery attempt resolves, which can take up to 10s.
+Send a test request, then check the log: `search_logs` / `get_log` with the MCP server, or **Logs** in the dashboard. Every request shows headers, body, response, status, and timing. For Async endpoints the log row appears once the first delivery attempt resolves, which can take up to 10s.
 
 For webhook providers see the `getrequest-webhooks` skill; for failures see `getrequest-troubleshoot`.
